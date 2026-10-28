@@ -1,0 +1,201 @@
+{
+  "eval_set_id": "weather_agent_demo_eval",
+  "name": "Weather Agent Demo Eval Set",
+  "description": "Demo eval set for a weather assistant: one simple QA case and one multi-turn conversation case with tool calls. Target agent tools: get_weather(city), get_weather_safety(city).",
+  "creation_timestamp": 1793145600.0,
+  "eval_cases": [
+    {
+      "eval_id": "case_001",
+      "creation_timestamp": 1793145600.0,
+      "conversation": [
+        {
+          "invocation_id": "case_001_turn_001",
+          "user_content": {
+            "role": "user",
+            "parts": [
+              {
+                "text": "What's the weather like in Paris right now?"
+              }
+            ]
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {
+                "id": "tool_call_001",
+                "name": "get_weather",
+                "args": {
+                  "city": "Paris"
+                }
+              }
+            ],
+            "tool_responses": [
+              {
+                "id": "tool_call_001",
+                "name": "get_weather",
+                "response": {
+                  "city": "Paris",
+                  "condition": "cloudy",
+                  "temperature_celsius": 14,
+                  "humidity_percent": 72
+                }
+              }
+            ]
+          },
+          "final_response": {
+            "role": "model",
+            "parts": [
+              {
+                "text": "The weather in Paris is currently cloudy with a temperature of 14\u00b0C and humidity at 72%."
+              }
+            ]
+          },
+          "creation_timestamp": 1793145600.0
+        }
+      ]
+    },
+    {
+      "eval_id": "case_002",
+      "creation_timestamp": 1793145600.0,
+      "conversation": [
+        {
+          "invocation_id": "case_002_turn_001",
+          "user_content": {
+            "role": "user",
+            "parts": [
+              {
+                "text": "I'm planning a weekend trip. Can you check the weather in Tokyo?"
+              }
+            ]
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {
+                "id": "tool_call_001",
+                "name": "get_weather",
+                "args": {
+                  "city": "Tokyo"
+                }
+              },
+              {
+                "id": "tool_call_002",
+                "name": "get_weather_safety",
+                "args": {
+                  "city": "Tokyo"
+                }
+              }
+            ],
+            "tool_responses": [
+              {
+                "id": "tool_call_001",
+                "name": "get_weather",
+                "response": {
+                  "city": "Tokyo",
+                  "condition": "rainy",
+                  "temperature_celsius": 18,
+                  "humidity_percent": 85
+                }
+              },
+              {
+                "id": "tool_call_002",
+                "name": "get_weather_safety",
+                "response": {
+                  "city": "Tokyo",
+                  "safety_level": "moderate",
+                  "advisory": "Heavy rain expected on Saturday; carry an umbrella."
+                }
+              }
+            ]
+          },
+          "final_response": {
+            "role": "model",
+            "parts": [
+              {
+                "text": "Tokyo is rainy at 18\u00b0C with 85% humidity. There is a moderate safety advisory: heavy rain is expected on Saturday, so bring an umbrella. Want me to check another city for comparison?"
+              }
+            ]
+          },
+          "creation_timestamp": 1793145601.0
+        },
+        {
+          "invocation_id": "case_002_turn_002",
+          "user_content": {
+            "role": "user",
+            "parts": [
+              {
+                "text": "Yes, please compare it with New York City."
+              }
+            ]
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {
+                "id": "tool_call_003",
+                "name": "get_weather",
+                "args": {
+                  "city": "New York"
+                }
+              },
+              {
+                "id": "tool_call_004",
+                "name": "get_weather_safety",
+                "args": {
+                  "city": "New York"
+                }
+              }
+            ],
+            "tool_responses": [
+              {
+                "id": "tool_call_003",
+                "name": "get_weather",
+                "response": {
+                  "city": "New York",
+                  "condition": "sunny",
+                  "temperature_celsius": 21,
+                  "humidity_percent": 40
+                }
+              },
+              {
+                "id": "tool_call_004",
+                "name": "get_weather_safety",
+                "response": {
+                  "city": "New York",
+                  "safety_level": "safe",
+                  "advisory": "No weather advisories in effect."
+                }
+              }
+            ]
+          },
+          "final_response": {
+            "role": "model",
+            "parts": [
+              {
+                "text": "Here's the comparison: Tokyo is rainy at 18\u00b0C (85% humidity, heavy rain advisory for Saturday), while New York is sunny at 21\u00b0C with 40% humidity and no advisories. Weather-wise, New York looks like the safer bet this weekend."
+              }
+            ]
+          },
+          "creation_timestamp": 1793145602.0
+        },
+        {
+          "invocation_id": "case_002_turn_003",
+          "user_content": {
+            "role": "user",
+            "parts": [
+              {
+                "text": "Which one should I visit this weekend then? Give me a final recommendation."
+              }
+            ]
+          },
+          "final_response": {
+            "role": "model",
+            "parts": [
+              {
+                "text": "I recommend visiting New York this weekend: it will be sunny at 21\u00b0C with no weather advisories, whereas Tokyo has a heavy-rain advisory for Saturday. If Tokyo was your first choice, aim for Sunday and pack an umbrella, but New York offers the better conditions overall."
+              }
+            ]
+          },
+          "creation_timestamp": 1793145603.0
+        }
+      ]
+    }
+  ]
+}
