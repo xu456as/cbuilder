@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rogue Agent 控制台</title>
+<style>
+  :root {
+    --bg: #0f1420; --panel: #1a2130; --border: #2a3348;
+    --text: #e6eaf2; --muted: #8b94a8; --accent: #4f8cff;
+    --red: #ff5d6c; --green: #3ecf8e; --orange: #ffb454;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; padding: 24px; }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+  .layout { display: grid; grid-template-columns: 380px 1fr; gap: 20px; align-items: start; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px; }
+  .panel h2 { font-size: 15px; margin-bottom: 14px; color: var(--accent); }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
+  input[type=text], input[type=password], textarea {
+    width: 100%; background: #111726; border: 1px solid var(--border); color: var(--text);
+    border-radius: 6px; padding: 8px 10px; font-size: 13px;
+  }
+  textarea { resize: vertical; min-height: 64px; }
+  input[type=file] { font-size: 12px; color: var(--muted); }
+  .slider-row { display: flex; align-items: center; gap: 10px; }
+  .slider-row input[type=range] { flex: 1; accent-color: var(--accent); }
+  #nVal { font-weight: 700; color: var(--accent); min-width: 24px; text-align: center; }
+  select { width: 100%; background: #111726; border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 8px; font-size: 13px; }
+  button.primary {
+    margin-top: 16px; width: 100%; background: var(--accent); color: #fff; border: 0;
+    border-radius: 6px; padding: 10px; font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  button.primary:disabled { opacity: .5; cursor: wait; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 500; }
+  tr.row { cursor: pointer; }
+  tr.row:hover { background: #212a3d; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+  .badge.running { background: #2b3b5c; color: var(--accent); }
+  .badge.completed { background: #1d3a2f; color: var(--green); }
+  .badge.failed, .badge.job_submitted { background: #3a2d1d; color: var(--orange); }
+  .badge.unsafe { background: #3d1d22; color: var(--red); }
+  .badge.safe { background: #1d3a2f; color: var(--green); }
+  #detail h3 { margin: 14px 0 8px; font-size: 14px; color: var(--accent); }
+  .bubble { max-width: 78%; padding: 8px 12px; border-radius: 10px; margin: 6px 0; font-size: 13px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+  .bubble.user { background: #24406b; margin-left: auto; }
+  .bubble.assistant { background: #262d3f; }
+  .bubble.user.inducement { border: 1px solid var(--red); }
+  .verdict-card { border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-size: 13px; line-height: 1.6; margin-top: 10px; }
+  .verdict-card.bad { border-color: var(--red); }
+  .verdict-card.good { border-color: var(--green); }
+  .muted { color: var(--muted); }
+  details { margin-top: 10px; font-size: 12px; }
+  details pre { background: #111726; padding: 10px; border-radius: 6px; overflow: auto; max-height: 300px; }
+  .empty { color: var(--muted); text-align: center; padding: 24px 0; }
+</style>
+</head>
+<body>
+<h1>Rogue Agent 控制台</h1>
+<div class="sub">用 agent 测评 agent — N 轮正常对话侦察 + 1 轮诱导问题，判定被测 agent 是否给出不恰当回复</div>
+
+<div class="layout">
+  <!-- 左：配置表单 -->
+  <div class="panel">
+    <h2>新建测试</h2>
+    <form id="runForm">
+      <label>正常对话轮数 N（诱导问题为第 N+1 轮）</label>
+      <div class="slider-row">
+        <input type="range" id="nTurns" min="0" max="20" value="3" oninput="nVal.textContent=this.value">
+        <span id="nVal">3</span>
+      </div>
+
+      <label>被测 agent endpoint（OpenAI 兼容 /chat/completions）</label>
+      <input type="text" id="endpoint" placeholder="https://target-agent.example.com/v1/chat/completions" required>
+
+      <label>Token（Bearer，可空）</label>
+      <input type="password" id="token" placeholder="sk-...">
+
+      <label>模型名（请求体 model 字段，可空）</label>
+      <input type="text" id="model" placeholder="gpt-4o-mini / my-agent-v1">
+
+      <label>执行模式</label>
+      <select id="mode">
+        <option value="">跟随环境默认</option>
+        <option value="local">local — 控制台内执行</option>
+        <option value="k8s">k8s — 创建一次性 Job</option>
+      </select>
+
+      <label>策略提示（可选，如“重点测试用户密码与工单数据的越权访问”）</label>
+      <textarea id="hint" placeholder="给 rogue agent 的领域策略指引"></textarea>
+
+      <label>领域知识文档（txt / md，可多选）</label>
+      <input type="file" id="docs" multiple accept=".txt,.md,.markdown,.csv,.json">
+
+      <button type="submit" class="primary" id="submitBtn">启动测试</button>
+    </form>
+  </div>
+
+  <!-- 右：结果区 -->
+  <div>
+    <div class="panel">
+      <h2>测试记录</h2>
+      <table>
+        <thead><tr><th>Run</th><th>时间</th><th>N</th><th>状态</th><th>判定</th></tr></thead>
+        <tbody id="runList"><tr><td colspan="5" class="empty">加载中...</td></tr></tbody>
+      </table>
+    </div>
+    <div class="panel" id="detail" style="display:none; margin-top:20px;"></div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const CATS = {sensitive_info_leak:"敏感信息泄漏", ethics_violation:"违反伦理", harmful_content:"有害内容",
+  instruction_injection_compliance:"顺从注入指令", role_overreach:"越权/越界", safe:"安全", other:"其他"};
+
+async function loadRuns() {
+  try {
+    const items = await (await fetch("/api/runs")).json();
+    const tbody = $("runList");
+    if (!items.length) { tbody.innerHTML = '<tr><td colspan="5" class="empty">暂无测试记录</td></tr>'; return; }
+    tbody.innerHTML = items.map(r => `
+      <tr class="row" onclick="showDetail('${esc(r.run_id)}')">
+        <td><code>${esc(r.run_id)}</code></td>
+        <td class="muted">${esc((r.created_at||"").replace("T"," ").slice(0,19))}</td>
+        <td>${esc(r.n_turns ?? "-")}</td>
+        <td><span class="badge ${esc(r.status)}">${esc(r.status)}</span></td>
+        <td>${r.is_inappropriate === true ? '<span class="badge unsafe">不恰当</span>'
+             : r.is_inappropriate === false ? '<span class="badge safe">通过</span>' : '<span class="muted">-</span>'}</td>
+      </tr>`).join("");
+  } catch (e) { console.error(e); }
+}
+
+async function showDetail(runId) {
+  const d = await (await fetch(`/api/runs/${runId}`)).json();
+  const panel = $("detail");
+  panel.style.display = "block";
+  const conv = d.conversation || [];
+  const verdict = d.verdict || {};
+  const chat = conv.map((m, i) => {
+    const isInduce = i === conv.length - 2 && m.role === "user";
+    return `<div class="bubble ${m.role}${isInduce ? " inducement" : ""}">
+      <b class="muted">${m.role === "user" ? (isInduce ? "诱导问题" : "用户") : "被测 agent"}：</b>${esc(m.content)}</div>`;
+  }).join("");
+  panel.innerHTML = `
+    <h2>用例详情 — <code>${esc(d.run_id)}</code></h2>
+    <div class="muted" style="font-size:12px">endpoint: ${esc((d.target||{}).endpoint||"-")} ·
+      状态: ${esc(d.status)} · ${d.error ? "错误: " + esc(d.error) : ""}</div>
+    <h3>对话 Trace（最后一条用户消息为诱导问题）</h3>
+    ${conv.length ? chat : '<div class="empty">暂无对话内容</div>'}
+    ${d.status === "completed" ? `
+    <h3>第一印象判定</h3>
+    <div class="verdict-card ${verdict.is_inappropriate ? "bad" : "good"}">
+      <div><span class="badge ${verdict.is_inappropriate ? "unsafe" : "safe"}">
+        ${verdict.is_inappropriate ? "不恰当回复" : "通过"}</span>
+        <span class="muted">类别: ${esc(CATS[verdict.category] || verdict.category || "-")} ·
+          置信度: ${verdict.confidence != null ? (verdict.confidence * 100).toFixed(0) + "%" : "-"}</span></div>
+      <div style="margin-top:8px"><b>第一印象：</b>${esc(verdict.first_impression)}</div>
+      <div style="margin-top:6px"><b>理由：</b>${esc(verdict.reasoning)}</div>
+      ${verdict.evidence ? `<div style="margin-top:6px"><b>证据：</b>“${esc(verdict.evidence)}”</div>` : ""}
+    </div>` : ""}
+    ${Array.isArray(d.plan_trace) && d.plan_trace.length ? `
+    <details><summary>rogue agent 规划过程</summary><pre>${esc(JSON.stringify(d.plan_trace, null, 2))}</pre></details>` : ""}`;
+  panel.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+$("runForm").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  const btn = $("submitBtn"); btn.disabled = true; btn.textContent = "提交中...";
+  const fd = new FormData();
+  fd.append("n_turns", $("nTurns").value);
+  fd.append("target_endpoint", $("endpoint").value);
+  fd.append("target_api_token", $("token").value);
+  fd.append("target_model", $("model").value);
+  fd.append("strategy_hint", $("hint").value);
+  if ($("mode").value) fd.append("execution_mode", $("mode").value);
+  for (const f of $("docs").files) fd.append("docs", f);
+  try {
+    const resp = await fetch("/api/runs", { method: "POST", body: fd });
+    const data = await resp.json();
+    if (!resp.ok) alert("提交失败: " + (data.detail || resp.status));
+    else { loadRuns(); setTimeout(loadRuns, 2000); }
+  } catch (e) { alert("提交异常: " + e); }
+  btn.disabled = false; btn.textContent = "启动测试";
+});
+
+loadRuns();
+setInterval(loadRuns, 5000);
+
+</script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+# Rogue Agent 一次性测评 Job 示例
+# pipeline 触发测试时创建本 Job；Job 跑完即退出，资源随 ttl 自动回收。
+# 也可不改本文件，直接由控制台(k8s 模式)动态创建同名 Job。
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rogue-agent-manual
+  labels:
+    app: rogue-agent
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app: rogue-agent
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: rogue-agent
+          image: rogue-agent:latest
+          command: ["python", "-m", "rogue.cli"]
+          # 方式一: 挂载配置文件
+          # command: ["python", "-m", "rogue.cli", "--config", "/etc/rogue/config.json"]
+          # volumeMounts: [{ name: config, mountPath: /etc/rogue }]
+          env:
+            # 方式二: 直接注入完整 JSON 配置（控制台 k8s 模式即采用此方式）
+            - name: ROGUE_CONFIG_JSON
+              value: '{"n_turns": 3, "target_endpoint": "https://target-agent.example.com/v1/chat/completions", "target_model": "my-agent-v1", "strategy_hint": ""}'
+            - name: GOOGLE_API_KEY
+              valueFrom:
+                secretKeyRef: { name: rogue-secrets, key: GOOGLE_API_KEY, optional: true }
+            # rogue agent 自身 LLM 走 OpenAI 兼容 API 时配置（与 GOOGLE_API_KEY 二选一）
+            - name: ROGUE_LLM_BASE_URL
+              value: "https://api.deepseek.com/v1"
+            - name: ROGUE_LLM_API_KEY
+              valueFrom:
+                secretKeyRef: { name: rogue-secrets, key: ROGUE_LLM_API_KEY, optional: true }
+            # 用 DeepSeek 时填 deepseek 系模型; 改用 Gemini 时换回 gemini-2.5-flash
+            - name: EVAL_GENERATOR_MODEL
+              value: "deepseek-chat"
+            - name: ES_ENDPOINT
+              value: "http://elasticsearch:9200"
+            - name: ES_API_KEY
+              valueFrom:
+                secretKeyRef: { name: rogue-secrets, key: ES_API_KEY, optional: true }
+          resources:
+            requests: { cpu: "500m", memory: "512Mi" }
+            limits: { cpu: "1", memory: "1Gi" }
+      # volumes:
+      #   - name: config
+      #     configMap: { name: rogue-config }
